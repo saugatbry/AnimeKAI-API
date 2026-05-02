@@ -156,21 +156,36 @@ def scrape_most_searched():
 
 def search_anime(keyword):
     try:
+        # Most WP themes use ?s= for search, but let's stick to your AJAX if it works
         response = scraper.get(ANIMEKAI_SEARCH_URL, params={"keyword": keyword}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
-        html = response.json().get("result", {}).get("html", "")
+        
+        # Check if it's JSON or HTML (some WP themes return raw HTML)
+        try:
+            res_json = response.json()
+            html = res_json.get("result", {}).get("html", "") if isinstance(res_json.get("result"), dict) else res_json.get("result", "")
+        except:
+            html = response.text
+
         if not html: return []
 
         soup = BeautifulSoup(html, "html.parser")
         results = []
-        for item in soup.find_all("a", class_="aitem"):
-            title_tag = item.find("h6", class_="title")
-            title = title_tag.get_text(strip=True) if title_tag else ""
-            japanese_title = title_tag.get("data-jp", "") if title_tag else ""
-            poster_img = item.select_one(".poster img")
-            poster = poster_img.get("src", "") if poster_img else ""
-            href = item.get("href", "")
-            slug = href.replace("/watch/", "") if href.startswith("/watch/") else href
+        for item in soup.select(".flw-item"):
+            title_tag = item.select_one(".film-name a")
+            if not title_tag: continue
+            
+            img_tag = item.select_one(".film-poster img")
+            href = title_tag.get("href", "")
+            slug = href.split("/")[-2] if href.endswith("/") else href.split("/")[-1]
+            
+            results.append({
+                "title": title_tag.get_text(strip=True),
+                "poster": img_tag.get("data-src") or img_tag.get("src") if img_tag else "",
+                "url": href,
+                "slug": slug
+            })
+        return results
 
             sub, dub, anime_type = "", "", ""
             year = ""
@@ -214,91 +229,62 @@ def scrape_home():
         soup = BeautifulSoup(response.text, "html.parser")
 
         banner = []
-        for slide in soup.select(".swiper-slide"):
-            style = slide.get("style", "")
-            bg_image = style.split("url(")[1].split(")")[0] if "url(" in style else ""
-            title_tag = slide.select_one("p.title")
-            title = title_tag.get_text(strip=True) if title_tag else ""
-            japanese_title = title_tag.get("data-jp", "") if title_tag else ""
-            description = slide.select_one("p.desc").get_text(strip=True) if slide.select_one("p.desc") else ""
+        for slide in soup.select("#slider .swiper-slide"):
+            title_tag = slide.select_one(".desi-head-title")
+            if not title_tag: continue
             
-            sub, dub, anime_type = parse_info_spans(slide.select_one(".info"))
+            img_tag = slide.select_one(".item-background img")
+            desc_tag = slide.select_one(".desi-description")
             
-            genres = ""
-            info_el = slide.select_one(".info")
-            if info_el:
-                for span in info_el.find_all("span"):
-                    if not span.get("class") and not span.find("b"):
-                        text = span.get_text(strip=True)
-                        if text and not text.isdigit(): genres = text
-
-            rating, release, quality = "", "", ""
-            mics = slide.select_one(".mics")
-            if mics:
-                for div in mics.find_all("div", recursive=False):
-                    l, v = div.select_one("div"), div.select_one("span")
-                    if l and v:
-                        lbl = l.get_text(strip=True).lower()
-                        if lbl == "rating": rating = v.get_text(strip=True)
-                        elif lbl == "release": release = v.get_text(strip=True)
-                        elif lbl == "quality": quality = v.get_text(strip=True)
-
-            if title:
-                banner.append({
-                    "title": title,
-                    "japanese_title": japanese_title,
-                    "description": description,
-                    "poster": bg_image,
-                    "url": f"{ANIMEKAI_URL.rstrip('/')}{slide.select_one('a.watch-btn').get('href', '')}" if slide.select_one('a.watch-btn') else "",
-                    "sub_episodes": sub,
-                    "dub_episodes": dub,
-                    "type": anime_type,
-                    "genres": genres,
-                    "rating": rating,
-                    "release": release,
-                    "quality": quality,
-                })
+            sub, dub, eps = "", "", ""
+            tick_sub = slide.select_one(".tick-sub")
+            tick_dub = slide.select_one(".tick-dub")
+            tick_eps = slide.select_one(".tick-eps")
+            
+            banner.append({
+                "title": title_tag.get_text(strip=True),
+                "description": desc_tag.get_text(strip=True) if desc_tag else "",
+                "poster": img_tag.get("src") if img_tag else "",
+                "url": slide.select_one("a.btn-primary").get("href", "") if slide.select_one("a.btn-primary") else "",
+                "sub_episodes": tick_sub.get_text(strip=True) if tick_sub else "",
+                "dub_episodes": tick_dub.get_text(strip=True) if tick_dub else "",
+                "total_episodes": tick_eps.get_text(strip=True) if tick_eps else "",
+            })
 
         latest = []
-        for item in soup.select(".aitem-wrapper.regular .aitem"):
-            title_tag = item.select_one("a.title")
-            href = item.select_one("a.poster").get("href", "") if item.select_one("a.poster") else ""
-            episode = href.split("#ep=")[-1] if "#ep=" in href else ""
-            href = href.split("#ep=")[0]
+        for item in soup.select(".flw-item"):
+            title_tag = item.select_one(".film-name a")
+            if not title_tag: continue
             
-            sub, dub, anime_type = parse_info_spans(item.select_one(".info"))
+            img_tag = item.select_one(".film-poster img")
+            tick_sub = item.select_one(".tick-sub")
+            tick_dub = item.select_one(".tick-dub")
             
-            if title_tag:
-                latest.append({
-                    "title": title_tag.get_text(strip=True),
-                    "japanese_title": title_tag.get("data-jp", ""),
-                    "poster": item.select_one("img.lazyload").get("data-src", "") if item.select_one("img.lazyload") else "",
-                    "url": f"{ANIMEKAI_URL.rstrip('/')}{href}",
-                    "current_episode": episode,
-                    "sub_episodes": sub,
-                    "dub_episodes": dub,
-                    "type": anime_type,
-                })
+            latest.append({
+                "title": title_tag.get_text(strip=True),
+                "poster": img_tag.get("data-src") or img_tag.get("src") if img_tag else "",
+                "url": title_tag.get("href", ""),
+                "sub_episodes": tick_sub.get_text(strip=True) if tick_sub else "",
+                "dub_episodes": tick_dub.get_text(strip=True) if tick_dub else "",
+            })
 
         trending = {}
-        for tab_id, tab_label in {"trending": "NOW", "day": "DAY", "week": "WEEK", "month": "MONTH"}.items():
-            container = soup.select_one(f".aitem-col.top-anime[data-id='{tab_id}']")
+        for tab_id, tab_label in {"day": "DAY", "week": "WEEK", "month": "MONTH"}.items():
+            container = soup.select_one(f"#top-viewed-{tab_id}")
             if not container: continue
             items = []
-            for item in container.find_all("a", class_="aitem"):
-                style = item.get("style", "")
-                poster = style.split("url(")[1].split(")")[0] if "url(" in style else ""
-                sub, dub, anime_type = parse_info_spans(item.select_one(".info"))
+            for item in container.select("li"):
+                title_tag = item.select_one(".film-name a")
+                if not title_tag: continue
+                
+                img_tag = item.select_one(".film-poster img")
+                rank = item.select_one(".number span")
                 
                 items.append({
-                    "rank": item.select_one(".num").get_text(strip=True) if item.select_one(".num") else "",
-                    "title": item.select_one(".detail .title").get_text(strip=True) if item.select_one(".detail .title") else "",
-                    "japanese_title": item.select_one(".detail .title").get("data-jp", "") if item.select_one(".detail .title") else "",
-                    "poster": poster,
-                    "url": f"{ANIMEKAI_URL.rstrip('/')}{item.get('href', '')}",
-                    "sub_episodes": sub,
-                    "dub_episodes": dub,
-                    "type": anime_type,
+                    "rank": rank.get_text(strip=True) if rank else "",
+                    "title": title_tag.get_text(strip=True),
+                    "poster": img_tag.get("data-src") or img_tag.get("src") if img_tag else "",
+                    "url": title_tag.get("href", ""),
                 })
             trending[tab_label] = items
 
@@ -308,7 +294,7 @@ def scrape_home():
 
 def scrape_anime_info(slug):
     try:
-        url = f"{ANIMEKAI_URL}watch/{slug}"
+        url = slug if slug.startswith("http") else f"{ANIMEKAI_URL}anime/{slug}"
         response = scraper.get(url, headers=HEADERS, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
@@ -319,52 +305,36 @@ def scrape_anime_info(slug):
             ani_id = detail_el.get("data-anime-id", "")
         
         if not ani_id:
-            sync = soup.select_one("script#syncData")
-            if sync:
-                try: ani_id = _json.loads(sync.string).get("anime_id", "")
-                except: pass
+            import re
+            script_id = soup.find("script", string=re.compile("anime_id"))
+            if script_id:
+                match = re.search(r'anime_id\s*:\s*"?(\d+)"?', script_id.string)
+                if match: ani_id = match.group(1)
 
-        info_el = soup.select_one(".main-entity .info")
-        sub, dub, atype = parse_info_spans(info_el)
+        title_tag = soup.select_one("h2.film-name")
+        desc_tag = soup.select_one(".film-description")
+        poster_tag = soup.select_one(".film-poster-img")
         
-        detail = {}
-        for div in soup.select(".detail > div > div"):
-            text = div.get_text(separator="|", strip=True)
-            if ":" in text:
-                k, v = text.split(":", 1)
-                k = k.strip().lower().replace(" ", "_").replace(":", "")
-                links = div.select("span a")
-                detail[k] = [a.get_text(strip=True) for a in links] if links else v.strip().strip("|")
-
         seasons = []
-        for s in soup.select(".swiper-wrapper.season .aitem"):
-            is_active = "active" in s.get("class", [])
-            d = s.select_one(".detail")
+        for s in soup.select(".os-list .os-item"):
             seasons.append({
-                "title": d.select_one("span").get_text(strip=True) if d else "",
-                "episodes": d.select_one(".btn").get_text(strip=True) if d else "",
-                "poster": s.select_one("img").get("src", "") if s.select_one("img") else "",
-                "url": f"{ANIMEKAI_URL.rstrip('/')}{s.select_one('a.poster').get('href', '')}" if s.select_one('a.poster') else "",
-                "active": is_active,
+                "title": s.get("title", ""),
+                "season": s.select_one(".title").get_text(strip=True) if s.select_one(".title") else "",
+                "poster": s.select_one(".season-poster").get("data-back") or s.select_one(".season-poster").get("style", ""),
+                "url": s.get("href", ""),
+                "active": "active" in s.get("class", [])
             })
 
-        bg_el = soup.select_one(".watch-section-bg")
-        banner = bg_el.get("style", "").split("url(")[1].split(")")[0] if bg_el and "url(" in bg_el.get("style", "") else ""
+        cover_el = soup.select_one(".anis-cover")
+        banner = cover_el.get("data-back") if cover_el else ""
 
         return {
             "ani_id": ani_id,
-            "title": soup.select_one("h1.title").get_text(strip=True) if soup.select_one("h1.title") else "",
-            "japanese_title": soup.select_one("h1.title").get("data-jp", "") if soup.select_one("h1.title") else "",
-            "description": soup.select_one(".desc").get_text(strip=True) if soup.select_one(".desc") else "",
-            "poster": soup.select_one(".poster img[itemprop='image']").get("src", "") if soup.select_one(".poster img[itemprop='image']") else "",
+            "title": title_tag.get_text(strip=True) if title_tag else "",
+            "description": desc_tag.get_text(strip=True) if desc_tag else "",
+            "poster": poster_tag.get("src") or poster_tag.get("data-src") if poster_tag else "",
             "banner": banner,
-            "sub_episodes": sub,
-            "dub_episodes": dub,
-            "type": atype,
-            "rating": info_el.select_one(".rating").get_text(strip=True) if info_el and info_el.select_one(".rating") else "",
-            "mal_score": soup.select_one(".rate-box .value").get_text(strip=True) if soup.select_one(".rate-box .value") else "",
-            "detail": detail,
-            "seasons": seasons,
+            "seasons": seasons
         }
     except Exception as e:
         return {"error": str(e)}, 500
