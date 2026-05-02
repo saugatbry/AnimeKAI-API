@@ -8,7 +8,6 @@ import re
 from upstash_redis import Redis
 
 app = Flask(__name__)
-from flask_cors import CORS
 CORS(app)
 
 # Create a cloudscraper instance to bypass Cloudflare
