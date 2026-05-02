@@ -1,4 +1,6 @@
 from flask import Flask, jsonify, request
+app = handler = application = Flask(__name__)
+
 from flask_cors import CORS
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -7,7 +9,6 @@ import os
 import re
 from upstash_redis import Redis
 
-app = handler = Flask(__name__)
 CORS(app)
 
 # Create a cloudscraper instance to bypass Cloudflare
