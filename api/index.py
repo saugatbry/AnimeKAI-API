@@ -7,7 +7,7 @@ import os
 import re
 from upstash_redis import Redis
 
-app = Flask(__name__)
+app = handler = Flask(__name__)
 CORS(app)
 
 # Create a cloudscraper instance to bypass Cloudflare
@@ -542,5 +542,4 @@ def api_source(link_id):
         set_cache(cache_key, res, ex=86400) # Source links cache for 24 hours
     return jsonify({"success": True, "cached": False, **res})
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+
