@@ -43,12 +43,12 @@ def set_cache(key, value, ex=86400):
         redis.set(key, _json.dumps(value), ex=ex)
     except: pass
 
-ANIMEKAI_URL = "https://anikai.to/"
-ANIMEKAI_HOME_URL = "https://anikai.to/home"
-ANIMEKAI_SEARCH_URL = "https://anikai.to/ajax/anime/search"
-ANIMEKAI_EPISODES_URL = "https://anikai.to/ajax/episodes/list"
-ANIMEKAI_SERVERS_URL = "https://anikai.to/ajax/links/list"
-ANIMEKAI_LINKS_VIEW_URL = "https://anikai.to/ajax/links/view"
+ANIMEKAI_URL = "https://animekai.at/"
+ANIMEKAI_HOME_URL = "https://animekai.at/home"
+ANIMEKAI_SEARCH_URL = "https://animekai.at/ajax/anime/search"
+ANIMEKAI_EPISODES_URL = "https://animekai.at/ajax/episodes/list"
+ANIMEKAI_SERVERS_URL = "https://animekai.at/ajax/links/list"
+ANIMEKAI_LINKS_VIEW_URL = "https://animekai.at/ajax/links/view"
 
 ENCDEC_URL = "https://enc-dec.app/api/enc-kai"
 ENCDEC_DEC_KAI = "https://enc-dec.app/api/dec-kai"
@@ -58,7 +58,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://anikai.to/",
+    "Referer": "https://animekai.at/",
 }
 
 AJAX_HEADERS = {
