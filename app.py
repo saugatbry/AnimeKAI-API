@@ -46,9 +46,9 @@ def set_cache(key, value, ex=86400):
 ANIMEKAI_URL = "https://animekai.at/"
 ANIMEKAI_HOME_URL = "https://animekai.at/home"
 ANIMEKAI_SEARCH_URL = "https://animekai.at/ajax/anime/search"
-ANIMEKAI_EPISODES_URL = "https://animekai.at/ajax/episodes/list"
-ANIMEKAI_SERVERS_URL = "https://animekai.at/ajax/links/list"
-ANIMEKAI_LINKS_VIEW_URL = "https://animekai.at/ajax/links/view"
+ANIMEKAI_EPISODES_URL = "https://animekai.at/ajax/v2/episode/list"
+ANIMEKAI_SERVERS_URL = "https://animekai.at/ajax/v2/server/list"
+ANIMEKAI_LINKS_VIEW_URL = "https://animekai.at/ajax/v2/server/view"
 
 ENCDEC_URL = "https://enc-dec.app/api/enc-kai"
 ENCDEC_DEC_KAI = "https://enc-dec.app/api/dec-kai"
@@ -370,7 +370,7 @@ def fetch_episodes(ani_id):
         encoded = encode_token(ani_id)
         if not encoded: return {"error": "Token encryption failed"}, 500
         
-        response = scraper.get(ANIMEKAI_EPISODES_URL, params={"ani_id": ani_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_EPISODES_URL, params={"id": ani_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         if not html: return []
@@ -397,7 +397,7 @@ def fetch_servers(ep_token):
         encoded = encode_token(ep_token)
         if not encoded: return {"error": "Token encryption failed"}, 500
         
-        response = scraper.get(ANIMEKAI_SERVERS_URL, params={"token": ep_token, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_SERVERS_URL, params={"id": ep_token, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         soup = BeautifulSoup(html, "html.parser")
@@ -427,7 +427,7 @@ def resolve_source(link_id):
             return {"error": "Token encryption failed (enc-dec.app unreachable or invalid response)", "step": "encode_token"}, 500
 
         # Step 2: Get Encrypted Link View
-        resp = scraper.get(ANIMEKAI_LINKS_VIEW_URL, params={"id": link_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        resp = scraper.get(ANIMEKAI_LINKS_VIEW_URL, params={"link_id": link_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         if resp.status_code != 200:
             return {"error": f"AniKai view request failed with status {resp.status_code}", "step": "links_view_fetch"}, 500
         
@@ -529,9 +529,12 @@ def api_episodes(ani_id):
     if cached: return jsonify({"success": True, "cached": True, "ani_id": ani_id, "count": len(cached), "episodes": cached})
 
     res = fetch_episodes(ani_id)
+    if isinstance(res, tuple): return jsonify(res[0]), res[1]
+    if isinstance(res, dict) and "error" in res: return jsonify(res), 500
+    
     if not isinstance(res, dict) or "error" not in res:
         set_cache(cache_key, res, ex=43200) # Episodes cache for 12 hours
-    return (jsonify(res), 500) if isinstance(res, dict) and "error" in res else jsonify({"success": True, "cached": False, "ani_id": ani_id, "count": len(res), "episodes": res})
+    return jsonify({"success": True, "cached": False, "ani_id": ani_id, "count": len(res), "episodes": res})
 
 @app.route("/api/servers/<ep_token>", methods=["GET"])
 def api_servers(ep_token):
@@ -540,9 +543,12 @@ def api_servers(ep_token):
     if cached: return jsonify({"success": True, "cached": True, **cached})
 
     res = fetch_servers(ep_token)
+    if isinstance(res, tuple): return jsonify(res[0]), res[1]
+    if isinstance(res, dict) and "error" in res: return jsonify(res), 500
+    
     if "error" not in res:
         set_cache(cache_key, res, ex=43200)
-    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, "cached": False, **res})
+    return jsonify({"success": True, "cached": False, **res})
 
 @app.route("/api/source/<link_id>", methods=["GET"])
 def api_source(link_id):
@@ -551,9 +557,12 @@ def api_source(link_id):
     if cached: return jsonify({"success": True, "cached": True, **cached})
 
     res = resolve_source(link_id)
+    if isinstance(res, tuple): return jsonify(res[0]), res[1]
+    if isinstance(res, dict) and "error" in res: return jsonify(res), 500
+    
     if "error" not in res:
         set_cache(cache_key, res, ex=86400) # Source links cache for 24 hours
-    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, "cached": False, **res})
+    return jsonify({"success": True, "cached": False, **res})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
