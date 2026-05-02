@@ -1,10 +1,19 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 import json as _json
 import os
 from upstash_redis import Redis
+
+# Create a cloudscraper instance to bypass Cloudflare
+scraper = cloudscraper.create_scraper(
+    browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'desktop': True
+    }
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -75,7 +84,7 @@ def _finalize_io_v4(r):
 
 def encode_token(text):
     try:
-        r = requests.get(ENCDEC_URL, params={"text": text}, timeout=15)
+        r = scraper.get(ENCDEC_URL, params={"text": text}, timeout=15)
         r.raise_for_status()
         data = r.json()
         return data.get("result") if data.get("status") == 200 else None
@@ -84,7 +93,7 @@ def encode_token(text):
 
 def decode_kai(text):
     try:
-        r = requests.post(ENCDEC_DEC_KAI, json={"text": text}, timeout=15)
+        r = scraper.post(ENCDEC_DEC_KAI, json={"text": text}, timeout=15)
         r.raise_for_status()
         data = r.json()
         return data.get("result") if data.get("status") == 200 else None
@@ -93,7 +102,7 @@ def decode_kai(text):
 
 def decode_mega(text):
     try:
-        r = requests.post(ENCDEC_DEC_MEGA, json={
+        r = scraper.post(ENCDEC_DEC_MEGA, json={
             "text": text,
             "agent": HEADERS["User-Agent"],
         }, timeout=15)
@@ -121,7 +130,7 @@ def parse_info_spans(info_el):
 
 def scrape_most_searched():
     try:
-        response = requests.get(ANIMEKAI_URL, headers=HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_URL, headers=HEADERS, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         most_searched_div = soup.find("div", class_="most_searched")
@@ -148,7 +157,7 @@ def scrape_most_searched():
 
 def search_anime(keyword):
     try:
-        response = requests.get(ANIMEKAI_SEARCH_URL, params={"keyword": keyword}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_SEARCH_URL, params={"keyword": keyword}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", {}).get("html", "")
         if not html: return []
@@ -201,7 +210,7 @@ def search_anime(keyword):
 
 def scrape_home():
     try:
-        response = requests.get(ANIMEKAI_HOME_URL, headers=HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_HOME_URL, headers=HEADERS, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -301,7 +310,7 @@ def scrape_home():
 def scrape_anime_info(slug):
     try:
         url = f"{ANIMEKAI_URL}watch/{slug}"
-        response = requests.get(url, headers=HEADERS, timeout=15)
+        response = scraper.get(url, headers=HEADERS, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -361,7 +370,7 @@ def fetch_episodes(ani_id):
         encoded = encode_token(ani_id)
         if not encoded: return {"error": "Token encryption failed"}, 500
         
-        response = requests.get(ANIMEKAI_EPISODES_URL, params={"ani_id": ani_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_EPISODES_URL, params={"ani_id": ani_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         if not html: return []
@@ -388,7 +397,7 @@ def fetch_servers(ep_token):
         encoded = encode_token(ep_token)
         if not encoded: return {"error": "Token encryption failed"}, 500
         
-        response = requests.get(ANIMEKAI_SERVERS_URL, params={"token": ep_token, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.get(ANIMEKAI_SERVERS_URL, params={"token": ep_token, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         soup = BeautifulSoup(html, "html.parser")
@@ -418,7 +427,7 @@ def resolve_source(link_id):
             return {"error": "Token encryption failed (enc-dec.app unreachable or invalid response)", "step": "encode_token"}, 500
 
         # Step 2: Get Encrypted Link View
-        resp = requests.get(ANIMEKAI_LINKS_VIEW_URL, params={"id": link_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        resp = scraper.get(ANIMEKAI_LINKS_VIEW_URL, params={"id": link_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
         if resp.status_code != 200:
             return {"error": f"AniKai view request failed with status {resp.status_code}", "step": "links_view_fetch"}, 500
         
@@ -439,7 +448,7 @@ def resolve_source(link_id):
         video_id = embed_url.rstrip("/").split("/")[-1]
         embed_base = embed_url.rsplit("/e/", 1)[0] if "/e/" in embed_url else embed_url.rsplit("/", 1)[0]
         
-        media_resp = requests.get(f"{embed_base}/media/{video_id}", headers=HEADERS, timeout=15)
+        media_resp = scraper.get(f"{embed_base}/media/{video_id}", headers=HEADERS, timeout=15)
         if media_resp.status_code != 200:
              return {"error": f"Media fetch failed with status {media_resp.status_code} from {embed_base}", "step": "media_fetch"}, 500
              
