@@ -385,26 +385,45 @@ def fetch_servers(ep_token):
 
 def resolve_source(link_id):
     try:
+        # Step 1: Encode Token
         encoded = encode_token(link_id)
-        if not encoded: return {"error": "Token encryption failed"}, 500
+        if not encoded: 
+            return {"error": "Token encryption failed (enc-dec.app unreachable or invalid response)", "step": "encode_token"}, 500
 
+        # Step 2: Get Encrypted Link View
         resp = requests.get(ANIMEKAI_LINKS_VIEW_URL, params={"id": link_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
-        resp.raise_for_status()
-        encrypted_result = resp.json().get("result", "")
+        if resp.status_code != 200:
+            return {"error": f"AniKai view request failed with status {resp.status_code}", "step": "links_view_fetch"}, 500
         
+        encrypted_result = resp.json().get("result", "")
+        if not encrypted_result:
+            return {"error": "AniKai returned empty result for link view", "step": "links_view_parse"}, 500
+        
+        # Step 3: Decode Kai Embed
         embed_data = decode_kai(encrypted_result)
-        if not embed_data: return {"error": "Embed decryption failed"}, 500
+        if not embed_data: 
+            return {"error": "Embed decryption failed (decode_kai returned null)", "step": "decode_kai"}, 500
+        
         embed_url = embed_data.get("url", "")
-        if not embed_url: return {"error": "No embed URL found"}, 500
+        if not embed_url: 
+            return {"error": "No embed URL found in decrypted data", "step": "embed_url_extract"}, 500
 
+        # Step 4: Get Media Data
         video_id = embed_url.rstrip("/").split("/")[-1]
         embed_base = embed_url.rsplit("/e/", 1)[0] if "/e/" in embed_url else embed_url.rsplit("/", 1)[0]
+        
         media_resp = requests.get(f"{embed_base}/media/{video_id}", headers=HEADERS, timeout=15)
-        media_resp.raise_for_status()
+        if media_resp.status_code != 200:
+             return {"error": f"Media fetch failed with status {media_resp.status_code} from {embed_base}", "step": "media_fetch"}, 500
+             
         encrypted_media = media_resp.json().get("result", "")
+        if not encrypted_media:
+            return {"error": "Media request returned empty result", "step": "media_parse"}, 500
 
+        # Step 5: Decode Mega Sources
         final_data = decode_mega(encrypted_media)
-        if not final_data: return {"error": "Media decryption failed"}, 500
+        if not final_data: 
+            return {"error": "Media decryption failed (decode_mega returned null)", "step": "decode_mega"}, 500
 
         return {
             "embed_url": embed_url,
@@ -414,7 +433,7 @@ def resolve_source(link_id):
             "download": final_data.get("download", ""),
         }
     except Exception as e:
-        return {"error": str(e)}, 500
+        return {"error": f"Internal Resolver Error: {str(e)}"}, 500
 
 @app.route("/", methods=["GET"])
 def index():
