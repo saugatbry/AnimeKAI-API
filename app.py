@@ -4,6 +4,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 import json as _json
 import os
+import re
 from upstash_redis import Redis
 
 # Create a cloudscraper instance to bypass Cloudflare
