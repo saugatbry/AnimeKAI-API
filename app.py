@@ -46,8 +46,7 @@ def set_cache(key, value, ex=86400):
 ANIMEKAI_URL = "https://animekai.at/"
 ANIMEKAI_HOME_URL = "https://animekai.at/home"
 ANIMEKAI_SEARCH_URL = "https://animekai.at/ajax/anime/search"
-ANIMEKAI_EPISODES_URL = "https://animekai.at/ajax/v2/episode/list"
-ANIMEKAI_SERVERS_URL = "https://animekai.at/ajax/v2/server/list"
+ANIMEKAI_AJAX_URL = "https://animekai.at/wp-admin/admin-ajax.php"
 ANIMEKAI_LINKS_VIEW_URL = "https://animekai.at/ajax/v2/server/view"
 
 ENCDEC_URL = "https://enc-dec.app/api/enc-kai"
@@ -315,10 +314,15 @@ def scrape_anime_info(slug):
         soup = BeautifulSoup(response.text, "html.parser")
 
         ani_id = ""
-        sync = soup.select_one("script#syncData")
-        if sync:
-            try: ani_id = _json.loads(sync.string).get("anime_id", "")
-            except: pass
+        detail_el = soup.select_one("#ani_detail")
+        if detail_el:
+            ani_id = detail_el.get("data-anime-id", "")
+        
+        if not ani_id:
+            sync = soup.select_one("script#syncData")
+            if sync:
+                try: ani_id = _json.loads(sync.string).get("anime_id", "")
+                except: pass
 
         info_el = soup.select_one(".main-entity .info")
         sub, dub, atype = parse_info_spans(info_el)
@@ -367,10 +371,12 @@ def scrape_anime_info(slug):
 
 def fetch_episodes(ani_id):
     try:
-        encoded = encode_token(ani_id)
-        if not encoded: return {"error": "Token encryption failed"}, 500
-        
-        response = scraper.get(ANIMEKAI_EPISODES_URL, params={"id": ani_id, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        # Since this is WordPress, we use admin-ajax.php with an action
+        response = scraper.post(ANIMEKAI_AJAX_URL, data={
+            "action": "hianime_get_episodes",
+            "anime_id": ani_id,
+            "nonce": "94e96a5657" # From your HTML
+        }, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         if not html: return []
@@ -392,12 +398,13 @@ def fetch_episodes(ani_id):
     except Exception as e:
         return {"error": str(e)}, 500
 
-def fetch_servers(ep_token):
+def fetch_servers(ep_id):
     try:
-        encoded = encode_token(ep_token)
-        if not encoded: return {"error": "Token encryption failed"}, 500
-        
-        response = scraper.get(ANIMEKAI_SERVERS_URL, params={"id": ep_token, "_": encoded}, headers=AJAX_HEADERS, timeout=15)
+        response = scraper.post(ANIMEKAI_AJAX_URL, data={
+            "action": "hianime_get_servers",
+            "episode_id": ep_id,
+            "nonce": "94e96a5657"
+        }, headers=AJAX_HEADERS, timeout=15)
         response.raise_for_status()
         html = response.json().get("result", "")
         soup = BeautifulSoup(html, "html.parser")
