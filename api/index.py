@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-app = handler = application = Flask(__name__)
+app = Flask(__name__)
 
 from flask_cors import CORS
 import cloudscraper
