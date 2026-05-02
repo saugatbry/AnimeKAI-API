@@ -1,84 +1,64 @@
-# 🎌 Anime Kai REST API
+# 🚀 AnimeKAI REST API (v1.1.0)
 
-<p align="center">
-  <img src="https://anikai.to/assets/uploads/37585a3ffa8ec292ee9e2255f3f63b48ceca17ef2a0386.png" alt="Anime Kai Logo" width="200"/>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Flask-Framework-black?style=for-the-badge&logo=flask" alt="Flask">
-  <img src="https://img.shields.io/badge/Repo-GitHub-white?style=for-the-badge&logo=github" alt="GitHub">
-  <img src="https://img.shields.io/badge/Status-Stable-success?style=for-the-badge" alt="Status">
-</p>
+A high-performance, Flask-based REST API for scraping and decrypting anime content from AnimeKAI. Optimized for speed and stability with Upstash Redis caching.
 
 ---
 
-## 🌟 Overview
-
-**Anime Kai REST API** is a high-performance, developer-first scraping engine designed to unlock the full potential of [AnimeKai](https://anikai.to). By combining advanced HTML parsing with automated token encryption, this API provides a seamless bridge to anime metadata, episode lists, and **direct m3u8 streaming links**.
-
-### 💎 Key Features
-- 🎬 **Direct Streaming Resolver:** Automated multi-step decryption to find real `m3u8` video sources.
-- 🕒 **Smart Timestamps:** Built-in intro and outro skip points for a premium viewing experience.
-- 🏠 **Dynamic Dashboard:** Scrapes homepage banners, latest updates, and trending anime (Now, Day, Week, Month).
-- 🧬 **Automated Encryption:** Zero-manual-work integration with `enc-dec.app` for secure token (`_`) parameters.
-- 🧼 **Pristine Source Code:** Clean, comment-free, and production-ready Python logic.
+## 🌟 Features
+- **Fast Scraping**: Extracts data from AnimeKAI with optimized headers.
+- **Auto-Decryption**: Integrated support for resolving encrypted m3u8 streams and skip times.
+- **Intelligent Caching**: Powered by Upstash Redis to prevent server overload and bypass rate limits.
+- **Detailed Error Handling**: Clear, step-by-step error reporting for easier debugging.
+- **CORS Enabled**: Ready for integration with any frontend or streaming platform.
 
 ---
 
-## 🛠 Architecture & Tech Stack
+## 🔗 Endpoints
 
-This project is built using modern Python tools to ensure speed and reliability:
-- **Flask:** Lightweight and scalable RESTful API framework.
-- **BeautifulSoup4:** Elegant HTML parsing and data extraction.
-- **Requests:** Robust HTTP communication with custom header management.
-- **Enc-Dec Bridge:** External integration for rolling token security.
-
----
-
-## 🚀 Installation & Deployment
-
-### 1. Set Up Environment
-Ensure you have Python 3.10 or higher installed.
-```bash
-# Install required packages
-pip install flask flask-cors requests beautifulsoup4
-```
-
-### 2. Launch the API
-```bash
-# Clone the repository
-git clone https://github.com/walterwhite-69/AnimeKAI-API.git
-cd AnimeKAI-API
-
-# Start the server
-python app.py
-```
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/home` | Get banner slides, latest updates, and trending anime. |
+| `GET` | `/api/search?keyword=...` | Search for anime by title or keyword. |
+| `GET` | `/api/anime/<slug>` | Get full metadata, description, and `ani_id`. |
+| `GET` | `/api/episodes/<ani_id>` | Get the full episode list and decryption tokens. |
+| `GET` | `/api/servers/<ep_token>` | Get all available Sub/Dub/Softsub mirrors. |
+| `GET` | `/api/source/<link_id>` | **The Prize**: Get direct m3u8 links, skip times, and tracks. |
 
 ---
 
-## 📖 API Documentation
+## 🛠️ Deployment (Vercel)
 
-### **Example Discovery Flow**
-| Order | Action | Endpoint | Purpose |
-| :--- | :--- | :--- | :--- |
-| **0** | Search | `GET /api/search?keyword=Naruto` | Find the anime `slug`. |
-| **1** | Info | `GET /api/anime/{slug}` | Extract metadata and the key `ani_id`. |
-| **2** | Episodes | `GET /api/episodes/{ani_id}` | Retrieve individual episode tokens. |
-| **3** | Servers | `GET /api/servers/{ep_token}` | Discover Sub, Dub, and Softsub mirrors. |
-| **4** | **Play** | `GET /api/source/{link_id}` | **Final Prize: Direct m3u8 stream!** |
-
----
-
+1. **Fork/Upload**: Push this repository to your GitHub.
+2. **Import**: Create a new project on Vercel and import the repository.
+3. **Configure Environment Variables**:
+   To enable caching and prevent "Overloaded" errors, you **must** set up Upstash Redis:
+   - `UPSTASH_REDIS_REST_URL`: Your Upstash REST URL.
+   - `UPSTASH_REDIS_REST_TOKEN`: Your Upstash REST Token.
+4. **Deploy**: Vercel will automatically install dependencies from `requirements.txt`.
 
 ---
 
-## 👤 Author & Contribution
-Developed and visioned by [**Walter**](https://github.com/walterwhite-69).
-Please star the repository for future updates
-For contributions, bug reports, or feature requests, visit the official repository:  
-🔗 **[GitHub Repository](https://github.com/walterwhite-69/AnimeKAI-API)**
+## 📦 Local Setup
+
+1. **Clone the repo**:
+   ```bash
+   git clone https://github.com/your-repo/AnimeKAI-API.git
+   cd AnimeKAI-API
+   ```
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Run the server**:
+   ```bash
+   python app.py
+   ```
 
 ---
 
-<p align="center">Made with ❤️by Walter for the Anime Community. <i>Educational use only.</i></p>
+## ⚠️ Disclaimer
+This project is for **educational purposes only**. The API does not host any content but merely scrapes publicly available information. Use at your own risk.
+
+---
+
+**Developed for KagePlay Ecosystem** ⚡

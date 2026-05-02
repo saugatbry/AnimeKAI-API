@@ -3,9 +3,36 @@ from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
 import json as _json
+import os
+from upstash_redis import Redis
 
 app = Flask(__name__)
 CORS(app)
+
+# ─── REDIS CACHE SETUP ─────────────────────────────────────────
+# These variables MUST be set in your Vercel Dashboard Environment Variables
+REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
+REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+
+redis = None
+if REDIS_URL and REDIS_TOKEN:
+    try:
+        redis = Redis(url=REDIS_URL, token=REDIS_TOKEN)
+    except:
+        print("Redis connection failed. Running without cache.")
+
+def get_cache(key):
+    if not redis: return None
+    try:
+        data = redis.get(key)
+        return _json.loads(data) if data else None
+    except: return None
+
+def set_cache(key, value, ex=86400):
+    if not redis: return
+    try:
+        redis.set(key, _json.dumps(value), ex=ex)
+    except: pass
 
 ANIMEKAI_URL = "https://anikai.to/"
 ANIMEKAI_HOME_URL = "https://anikai.to/home"
@@ -466,28 +493,58 @@ def api_search():
 
 @app.route("/api/home", methods=["GET"])
 def api_home():
+    cache_key = "home_v1"
+    cached = get_cache(cache_key)
+    if cached: return jsonify({"success": True, "cached": True, **cached})
+
     res = scrape_home()
-    return (jsonify(res), 500) if isinstance(res, dict) and "error" in res else jsonify({"success": True, **res})
+    if isinstance(res, dict) and "error" not in res:
+        set_cache(cache_key, res, ex=3600) # Home caches for 1 hour
+    return (jsonify(res), 500) if isinstance(res, dict) and "error" in res else jsonify({"success": True, "cached": False, **res})
 
 @app.route("/api/anime/<slug>", methods=["GET"])
 def api_anime_info(slug):
+    cache_key = f"anime_{slug}"
+    cached = get_cache(cache_key)
+    if cached: return jsonify({"success": True, "cached": True, **cached})
+
     res = scrape_anime_info(slug)
-    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, **res})
+    if "error" not in res:
+        set_cache(cache_key, res)
+    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, "cached": False, **res})
 
 @app.route("/api/episodes/<ani_id>", methods=["GET"])
 def api_episodes(ani_id):
+    cache_key = f"episodes_{ani_id}"
+    cached = get_cache(cache_key)
+    if cached: return jsonify({"success": True, "cached": True, "ani_id": ani_id, "count": len(cached), "episodes": cached})
+
     res = fetch_episodes(ani_id)
-    return (jsonify(res), 500) if isinstance(res, dict) and "error" in res else jsonify({"success": True, "ani_id": ani_id, "count": len(res), "episodes": res})
+    if not isinstance(res, dict) or "error" not in res:
+        set_cache(cache_key, res, ex=43200) # Episodes cache for 12 hours
+    return (jsonify(res), 500) if isinstance(res, dict) and "error" in res else jsonify({"success": True, "cached": False, "ani_id": ani_id, "count": len(res), "episodes": res})
 
 @app.route("/api/servers/<ep_token>", methods=["GET"])
 def api_servers(ep_token):
+    cache_key = f"servers_{ep_token}"
+    cached = get_cache(cache_key)
+    if cached: return jsonify({"success": True, "cached": True, **cached})
+
     res = fetch_servers(ep_token)
-    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, **res})
+    if "error" not in res:
+        set_cache(cache_key, res, ex=43200)
+    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, "cached": False, **res})
 
 @app.route("/api/source/<link_id>", methods=["GET"])
 def api_source(link_id):
+    cache_key = f"source_{link_id}"
+    cached = get_cache(cache_key)
+    if cached: return jsonify({"success": True, "cached": True, **cached})
+
     res = resolve_source(link_id)
-    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, **res})
+    if "error" not in res:
+        set_cache(cache_key, res, ex=86400) # Source links cache for 24 hours
+    return (jsonify(res), 500) if "error" in res else jsonify({"success": True, "cached": False, **res})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
