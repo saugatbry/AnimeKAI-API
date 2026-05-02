@@ -7,6 +7,10 @@ import os
 import re
 from upstash_redis import Redis
 
+app = Flask(__name__)
+from flask_cors import CORS
+CORS(app)
+
 # Create a cloudscraper instance to bypass Cloudflare
 scraper = cloudscraper.create_scraper(
     browser={
@@ -15,9 +19,6 @@ scraper = cloudscraper.create_scraper(
         'desktop': True
     }
 )
-
-app = Flask(__name__)
-CORS(app)
 
 # ─── REDIS CACHE SETUP ─────────────────────────────────────────
 # These variables MUST be set in your Vercel Dashboard Environment Variables
